@@ -153,11 +153,16 @@ class GenericDataset(data.Dataset):
                 transform.append(transforms.RandomHorizontalFlip())
             transform.append(lambda x: np.asarray(x))
             self.transform = transforms.Compose(transform)
-            self.data = datasets.__dict__[self.dataset_name.upper()](
-                _CIFAR_DATASET_DIR, train=self.split=='train',
+            if self.split == 'train':
+                self.data = datasets.__dict__[self.dataset_name.upper()](
+                _CIFAR_DATASET_DIR, train=True,
+                download=True, transform=self.transform)
+            else:
+                self.data = datasets.__dict__[self.dataset_name.upper()](
+                _CIFAR_DATASET_DIR, train=False,
                 download=True, transform=self.transform)
         else:
-            raise ValueError('Not recognized dataset {0}'.format(dname))
+            raise ValueError('Not recognized dataset {0}'.format(self.dataset_name))
         
         if num_imgs_per_cat is not None:
             self._keep_first_k_examples_per_category(num_imgs_per_cat)
@@ -167,8 +172,8 @@ class GenericDataset(data.Dataset):
         print('num_imgs_per_category {0}'.format(num_imgs_per_cat))
    
         if self.dataset_name=='cifar10':
-            labels = self.data.test_labels if (self.split=='test') else self.data.train_labels
-            data = self.data.test_data if (self.split=='test') else self.data.train_data
+            labels = self.data.targets if (self.split=='test') else self.data.targets
+            data = self.data.data if (self.split=='test') else self.data.data
             label2ind = buildLabelIndex(labels)
             all_indices = []
             for cat in label2ind.keys():
@@ -178,22 +183,22 @@ class GenericDataset(data.Dataset):
             data = data[all_indices]
             labels = [labels[idx] for idx in all_indices]
             if self.split=='test':
-                self.data.test_labels = labels
-                self.data.test_data = data
+                self.data.targets = labels
+                self.data.data = data
             else: 
-                self.data.train_labels = labels
-                self.data.train_data = data
+                self.data.targets = labels
+                self.data.data = data
 
             label2ind = buildLabelIndex(labels)
             for k, v in label2ind.items(): 
                 assert(len(v)==num_imgs_per_cat)
 
         elif self.dataset_name=='imagenet':
-            raise ValueError('Keeping k examples per category has not been implemented for the {0}'.format(dname))
+            raise ValueError('Keeping k examples per category has not been implemented for the {0}'.format(self.dataset_name))
         elif self.dataset_name=='place205':
-            raise ValueError('Keeping k examples per category has not been implemented for the {0}'.format(dname))
+            raise ValueError('Keeping k examples per category has not been implemented for the {0}'.format(self.dataset_name))
         else:
-            raise ValueError('Not recognized dataset {0}'.format(dname))
+            raise ValueError('Not recognized dataset {0}'.format(self.dataset_name))
 
 
     def __getitem__(self, index):
@@ -217,11 +222,11 @@ def rotate_img(img, rot):
     if rot == 0: # 0 degrees rotation
         return img
     elif rot == 90: # 90 degrees rotation
-        return np.flipud(np.transpose(img, (1,0,2)))
+        return np.flipud(np.transpose(img, (1,0,2))).copy()
     elif rot == 180: # 90 degrees rotation
-        return np.fliplr(np.flipud(img))
+        return np.fliplr(np.flipud(img)).copy()
     elif rot == 270: # 270 degrees rotation / or -90
-        return np.transpose(np.flipud(img), (1,0,2))
+        return np.transpose(np.flipud(img), (1,0,2)).copy()
     else:
         raise ValueError('rotation should be 0, 90, 180, or 270 degrees')
 
@@ -300,12 +305,12 @@ class DataLoader(object):
         return self.get_iterator(epoch)
 
     def __len__(self):
-        return self.epoch_size / self.batch_size
+        return int(self.epoch_size / self.batch_size)
 
 if __name__ == '__main__':
     from matplotlib import pyplot as plt
 
-    dataset = GenericDataset('imagenet','train', random_sized_crop=True)
+    dataset = GenericDataset('cifar10','train', random_sized_crop=False)
     dataloader = DataLoader(dataset, batch_size=8, unsupervised=True)
 
     for b in dataloader(0):
@@ -314,9 +319,10 @@ if __name__ == '__main__':
 
     inv_transform = dataloader.inv_transform
     for i in range(data.size(0)):
-        plt.subplot(data.size(0)/4,4,i+1)
+        plt.subplot(int(data.size(0)/4),4,i+1)
         fig=plt.imshow(inv_transform(data[i]))
         fig.axes.get_xaxis().set_visible(False)
         fig.axes.get_yaxis().set_visible(False)
+        plt.savefig('./plots/cifar10_input')
 
     plt.show()
