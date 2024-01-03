@@ -14,11 +14,11 @@ def accuracy(output, target, topk=(1,)):
 
     _, pred = output.topk(maxk, 1, True, True)
     pred = pred.t()
-    correct = pred.eq(target.view(1, -1).expand_as(pred))
+    correct = pred.eq(target.reshape(1, -1).expand_as(pred))
 
     res = []
     for k in topk:
-        correct_k = correct[:k].view(-1).float().sum(0)
+        correct_k = correct[:k].reshape(-1).float().sum(0)
         res.append(correct_k.mul_(100.0 / batch_size))
     return res
 
@@ -37,7 +37,6 @@ class FeatureClassificationModel(Algorithm):
 
     def evaluation_step(self, batch):
         return self.process_batch(batch, do_train=False)
-
     def process_batch(self, batch, do_train=True):
         #*************** LOAD BATCH (AND MOVE IT TO GPU) ********
         start = time.time()
@@ -87,9 +86,9 @@ class FeatureClassificationModel(Algorithm):
                 record['prec5_c'+str(1+i)] = accuracy(pred_var[i].data, labels, topk=(5,))[0][0]
         else:
             loss_total = self.criterions['loss'](pred_var, labels_var)
-            record['prec1'] = accuracy(pred_var.data, labels, topk=(1,))[0][0]
-            record['prec5'] = accuracy(pred_var.data, labels, topk=(5,))[0][0]
-        record['loss'] = loss_total.data[0]
+            record['prec1'] = accuracy(pred_var.data, labels, topk=(1,))[0].item()
+            record['prec5'] = accuracy(pred_var.data, labels, topk=(5,))[0].item()
+        record['loss'] = loss_total.data.item()
         #********************************************************
 
         #****** BACKPROPAGATE AND APPLY OPTIMIZATION STEP *******
